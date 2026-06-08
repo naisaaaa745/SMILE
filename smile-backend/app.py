@@ -2,6 +2,8 @@ import os
 import time
 import uuid
 import logging
+import sqlite3
+import speech_recognition as sr
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS, cross_origin
 from gtts import gTTS
@@ -27,6 +29,21 @@ os.makedirs(AUDIO_DIR, exist_ok=True)
 
 # URL dasar untuk file audio statis
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:5000")
+
+# Database SQLite Configuration
+DATABASE = os.path.join(app.root_path, 'smile.db')
+
+def init_db():
+    with sqlite3.connect(DATABASE) as conn:
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE,
+                password TEXT,
+                jenis_disabilitas TEXT
+            )
+        ''')
+        conn.commit()
 
 # Soal Kuis Dummy (Kunci jawaban disimpan di backend untuk pencocokan)
 QUIZ_QUESTIONS = [
@@ -174,7 +191,7 @@ def text_to_speech():
         }), 500
 
 @app.route("/api/talkspace/stt", methods=["POST"])
-def speech_to_text_mock():
+def speech_to_text():
     try:
         # Mendukung JSON maupun FormData untuk simulasi fleksibel
         text_input = ""
@@ -184,18 +201,53 @@ def speech_to_text_mock():
             data = request.get_json()
             text_input = data.get("text", "").strip() if data else ""
         elif request.files:
-            # Simulasi file audio diunggah
             audio_file = request.files.get("audio")
             if audio_file:
                 is_audio = True
-                text_input = "Simulasi suara dari rekaman audio yang berhasil diunggah"
+                
+                # Simpan file audio sementara
+                temp_filename = f"stt_temp_{uuid.uuid4().hex}.wav"
+                temp_filepath = os.path.join(AUDIO_DIR, temp_filename)
+                audio_file.save(temp_filepath)
+                
+                # Inisialisasi Recognizer
+                recognizer = sr.Recognizer()
+                try:
+                    with sr.AudioFile(temp_filepath) as source:
+                        audio_data = recognizer.record(source)
+                        text_input = recognizer.recognize_google(audio_data, language='id-ID').strip()
+                except sr.UnknownValueError:
+                    if os.path.exists(temp_filepath):
+                        os.remove(temp_filepath)
+                    return jsonify({
+                        "error": "Suara tidak dapat dipahami oleh sistem.",
+                        "details": "Google Speech Recognition could not understand the audio"
+                    }), 400
+                except sr.RequestError as e:
+                    if os.path.exists(temp_filepath):
+                        os.remove(temp_filepath)
+                    return jsonify({
+                        "error": "Gagal menghubungi layanan Speech-to-Text Google.",
+                        "details": str(e)
+                    }), 500
+                except Exception as e:
+                    if os.path.exists(temp_filepath):
+                        os.remove(temp_filepath)
+                    return jsonify({
+                        "error": "Gagal membaca atau memproses file audio.",
+                        "details": str(e)
+                    }), 400
+                
+                # Hapus file sementara setelah diproses
+                if os.path.exists(temp_filepath):
+                    os.remove(temp_filepath)
         else:
             text_input = request.form.get("text", "").strip()
 
         if not text_input and not is_audio:
             return jsonify({"error": "Harap kirim parameter 'text' atau file audio."}), 400
 
-        # Logika Mock-Up Balasan Cerdas berdasarkan Input Pengguna
+        # Logika Balasan Cerdas berdasarkan Input Pengguna
         text_input_lower = text_input.lower()
         if "halo" in text_input_lower or "hai" in text_input_lower:
             reply = "Halo! Senang bisa berbicara denganmu di Talk Space. Bagaimana belajarmu hari ini?"
@@ -212,14 +264,14 @@ def speech_to_text_mock():
             "status": "success",
             "user_input": text_input,
             "reply": reply,
-            "simulated_mode": "Speech-to-Text Mockup",
+            "simulated_mode": "Speech-to-Text Real",
             "audio_received": is_audio
         }), 200
         
     except Exception as e:
         logger.error(f"Error pada POST /api/talkspace/stt: {str(e)}")
         return jsonify({
-            "error": "Gagal memproses simulasi Speech-to-Text.",
+            "error": "Gagal memproses Speech-to-Text.",
             "details": str(e)
         }), 500
 
@@ -300,8 +352,46 @@ def submit_quiz():
         }), 500
 
 # ==========================================
-# 4. API untuk Fitur Sign In (Dummy)
+# 4. API untuk Manajemen Pengguna
 # ==========================================
+@app.route("/api/register", methods=["POST"])
+@cross_origin()
+def register():
+    try:
+        data = request.get_json()
+        if not data or 'username' not in data or 'password' not in data or 'jenis_disabilitas' not in data:
+            return jsonify({"status": "error", "message": "Username, password, dan jenis disabilitas wajib diisi."}), 400
+            
+        username = data['username'].strip()
+        password = data['password'].strip()
+        jenis_disabilitas = data['jenis_disabilitas'].strip()
+        
+        if not username or not password or not jenis_disabilitas:
+            return jsonify({"status": "error", "message": "Semua kolom input tidak boleh kosong."}), 400
+            
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                'INSERT INTO users (username, password, jenis_disabilitas) VALUES (?, ?, ?)',
+                (username, password, jenis_disabilitas)
+            )
+            conn.commit()
+        except sqlite3.IntegrityError:
+            conn.close()
+            return jsonify({"status": "error", "message": "Username sudah terdaftar."}), 400
+        
+        conn.close()
+        return jsonify({"status": "success", "message": "Pendaftaran berhasil!"}), 201
+        
+    except Exception as e:
+        logger.error(f"Error pada POST /api/register: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": "Terjadi kesalahan internal server.",
+            "details": str(e)
+        }), 500
+
 @app.route("/api/signin", methods=["POST"])
 @cross_origin()
 def sign_in():
@@ -313,8 +403,13 @@ def sign_in():
         username = data['username'].strip()
         password = data['password'].strip()
         
-        # Pengecekan hardcoded sesuai spesifikasi
-        if username == "siswa" and password == "SMILE123":
+        conn = sqlite3.connect(DATABASE)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        user = cursor.execute('SELECT * FROM users WHERE username = ? AND password = ?', (username, password)).fetchone()
+        conn.close()
+        
+        if user:
             return jsonify({"status": "success", "message": "Login berhasil!"}), 200
         else:
             return jsonify({"status": "error", "message": "Username atau password salah."}), 401
@@ -334,6 +429,7 @@ def serve_audio(filename):
 
 # Menjalankan Flask Server
 if __name__ == "__main__":
+    init_db()  # Inisialisasi database saat aplikasi mulai
     logger.info("Menjalankan backend server SMILE...")
     # Menjalankan di port 5000, diizinkan dari semua network host (0.0.0.0) agar mudah diakses
     app.run(host="0.0.0.0", port=5000, debug=True)

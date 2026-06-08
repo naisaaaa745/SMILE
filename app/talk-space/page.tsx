@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 export default function TalkSpace() {
   const [messages, setMessages] = useState([
@@ -10,12 +10,43 @@ export default function TalkSpace() {
   const [inputText, setInputText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
 
-  // Fungsi Kirim Teks
-  const handleSendMessage = () => {
-    if (inputText.trim() !== "") {
-      const newMsg = { id: Date.now(), sender: "Anda", text: inputText };
-      setMessages([...messages, newMsg]);
-      setInputText("");
+  // Fungsi Kirim Teks ke Backend Flask
+  const handleSendMessage = async (textToSend: string = inputText) => {
+    const trimmed = textToSend.trim();
+    if (!trimmed) return;
+
+    // Tambahkan pesan user ke daftar chat
+    const userMsg = { id: Date.now(), sender: "Anda", text: trimmed };
+    setMessages(prev => [...prev, userMsg]);
+    setInputText("");
+
+    try {
+      // Kirim input ke backend STT Flask
+      const res = await fetch('http://localhost:5000/api/talkspace/stt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: trimmed })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.reply) {
+        const botMsg = { id: Date.now() + 1, sender: "Asisten SMILE", text: data.reply };
+        setMessages(prev => [...prev, botMsg]);
+
+        // Putar audio panduan secara otomatis menggunakan TTS
+        const ttsRes = await fetch('http://localhost:5000/api/talkspace/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: data.reply })
+        });
+        const ttsData = await ttsRes.json();
+        if (ttsRes.ok && ttsData.audio_url) {
+          const audio = new Audio(ttsData.audio_url);
+          audio.play().catch(e => console.error("Playback failed:", e));
+        }
+      }
+    } catch (err) {
+      console.error("Gagal menghubungi backend:", err);
     }
   };
 
@@ -38,6 +69,7 @@ export default function TalkSpace() {
     recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
       setInputText(transcript); // Hasil suara otomatis masuk ke kotak input
+      handleSendMessage(transcript); // Kirim ucapan secara langsung ke backend
     };
 
     recognition.start();
@@ -62,6 +94,7 @@ export default function TalkSpace() {
         <input 
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
           className="flex-1 bg-slate-800 p-4 rounded-2xl border border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" 
           placeholder="Ketik pesan atau klik tombol rekam..." 
         />
@@ -78,7 +111,7 @@ export default function TalkSpace() {
 
         {/* Tombol Kirim */}
         <button 
-          onClick={handleSendMessage}
+          onClick={() => handleSendMessage()}
           className="bg-indigo-600 px-8 py-4 rounded-2xl font-bold hover:bg-indigo-500 transition-all"
         >
           Kirim
