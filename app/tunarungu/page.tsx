@@ -1,29 +1,60 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
-import { Camera, ArrowLeft, Volume2, Eye, Trash2, Save } from 'lucide-react';
+import { Camera, ArrowLeft, BookCheck, PlayCircle } from 'lucide-react';
 import Link from 'next/link';
-import { HandLandmarker, FilesetResolver, DrawingUtils } from "@mediapipe/tasks-vision";
+import { HandLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 
-export default function TalkSpaceTunarungu() {
+// Modul Kurikulum
+const SYLLABUS = [
+  { id: "HUJAN_LEBAT", title: "Modul 1: Hujan Lebat", instruction: "Peragakan isyarat 'Hujan Lebat' untuk menyelesaikan modul ini." },
+  { id: "BANJIR", title: "Modul 2: Bahaya Banjir", instruction: "Peragakan isyarat 'Banjir' untuk lanjut ke tahap evaluasi." }
+];
+
+export default function LearningPathTunarungu() {
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [currentModuleIndex, setCurrentModuleIndex] = useState(0);
+  const [feedbackText, setFeedbackText] = useState("Menunggu isyarat tangan...");
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const handLandmarker = useRef<HandLandmarker | null>(null);
 
-  // 1. Inisialisasi Model AI
   useEffect(() => {
     async function loadModel() {
       const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm");
       handLandmarker.current = await HandLandmarker.createFromOptions(vision, {
         baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task` },
         runningMode: "VIDEO",
-        numHands: 2,
+        numHands: 1,
       });
     }
     loadModel();
   }, []);
 
-  // 2. Fungsi Aktifkan Kamera
+  const renderLoop = () => {
+    if (!videoRef.current || !handLandmarker.current) return;
+    if (videoRef.current.readyState >= 2) {
+      const results = handLandmarker.current.detectForVideo(videoRef.current, performance.now());
+      if (results.landmarks.length > 0) {
+        const landmark = results.landmarks[0][0];
+        const currentTarget = SYLLABUS[currentModuleIndex].id;
+
+        // Logika Evaluasi Pemahaman (Dummy Validation)
+        let detected = "";
+        if (landmark.y < 0.3) detected = "HUJAN_LEBAT";
+        else if (landmark.x > 0.7) detected = "BANJIR";
+
+        if (detected === currentTarget) {
+          setFeedbackText(`Hebat! Isyarat ${currentTarget} tepat.`);
+          if (currentModuleIndex < SYLLABUS.length - 1) {
+            setTimeout(() => setCurrentModuleIndex(prev => prev + 1), 2000);
+          }
+        } else {
+          setFeedbackText("Gerakan belum tepat, ikuti peragaan Avatar 3D.");
+        }
+      }
+    }
+    if (isCameraActive) requestAnimationFrame(renderLoop);
+  };
+
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -35,64 +66,58 @@ export default function TalkSpaceTunarungu() {
           requestAnimationFrame(renderLoop);
         }
       }, 500);
-    } catch (err) { alert("Gagal akses kamera"); }
-  };
-
-  // 3. Render Loop untuk Deteksi
-  const renderLoop = () => {
-    if (!isCameraActive || !videoRef.current || !canvasRef.current || !handLandmarker.current) return;
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-
-    if (ctx) {
-      // SINKRONISASI UKURAN: Canvas harus mengikuti ukuran video
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      
-      const results = handLandmarker.current.detectForVideo(video, performance.now());
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      if (results.landmarks) {
-        const drawingUtils = new DrawingUtils(ctx);
-        for (const landmarks of results.landmarks) {
-          drawingUtils.drawConnectors(landmarks, HandLandmarker.HAND_CONNECTIONS, { color: "#00FF00", lineWidth: 5 });
-          drawingUtils.drawLandmarks(landmarks, { color: "#FF0000", lineWidth: 2 });
-        }
-      }
-    }
-    if (isCameraActive) requestAnimationFrame(renderLoop);
+    } catch (err) { alert("Akses kamera ditolak."); }
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900 font-sans p-10">
-      <div className="max-w-2xl mx-auto">
-        <Link href="/tunanetra" className="flex items-center gap-2 text-blue-700 font-bold mb-6">
-          <ArrowLeft size={20}/> Kembali ke Dashboard
-        </Link>
+    <main className="min-h-screen bg-gradient-to-br from-indigo-100 via-blue-50 to-purple-100 p-6 md:p-10 font-sans">
+      <div className="max-w-6xl mx-auto">
+        <header className="flex justify-between items-center mb-8 bg-white/80 backdrop-blur-md px-6 py-4 rounded-2xl shadow-sm">
+          <Link href="/signin" className="flex items-center gap-2 text-indigo-700 font-bold hover:underline">
+            <ArrowLeft size={20} /> Dashboard
+          </Link>
+          <span className="bg-indigo-100 text-indigo-700 px-4 py-1.5 rounded-full font-bold text-xs">Learning Path: Mitigasi Bencana</span>
+        </header>
 
-        {!isCameraActive ? (
-          <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-lg">
-            <h2 className="text-2xl font-bold mb-6">Mulai Diskusi Baru</h2>
-            <button onClick={startCamera} className="w-full h-64 border-2 border-dashed border-blue-300 rounded-2xl flex flex-col items-center justify-center text-blue-600 mb-6">
-              <Camera size={48} className="mb-4"/> Klik untuk Aktifkan Kamera
-            </button>
-            <div className="flex gap-4">
-              <button className="bg-yellow-400 px-6 py-2 rounded-xl font-bold"><Save size={18} className="inline mr-2"/> Simpan</button>
-              <button className="bg-slate-200 px-6 py-2 rounded-xl font-bold"><Trash2 size={18} className="inline mr-2"/> Hapus</button>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Panel Edukasi & Avatar 3D */}
+          <div className="bg-white/90 p-8 rounded-3xl shadow-xl flex flex-col">
+            <div className="flex items-center gap-3 mb-6 border-b pb-4">
+              <BookCheck className="text-indigo-600" size={28} />
+              <h2 className="text-2xl font-black text-slate-900">{SYLLABUS[currentModuleIndex].title}</h2>
+            </div>
+
+            {/* Placeholder Avatar 3D Interaktif */}
+            <div className="flex-1 bg-slate-100 rounded-2xl flex flex-col items-center justify-center border-2 border-dashed border-indigo-200 mb-6 relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-t from-indigo-900/40 to-transparent"></div>
+              <PlayCircle size={64} className="text-white/80 relative z-10 group-hover:scale-110 transition-transform cursor-pointer" />
+              <p className="text-white font-bold mt-4 relative z-10">Avatar 3D Memperagakan Materi</p>
+            </div>
+
+            <div className="bg-indigo-50 p-5 rounded-2xl border border-indigo-100">
+              <p className="text-sm font-bold text-indigo-800 uppercase tracking-widest mb-2">Instruksi Tugas</p>
+              <p className="text-lg font-medium text-slate-700">{SYLLABUS[currentModuleIndex].instruction}</p>
             </div>
           </div>
-        ) : (
-          <div className="flex flex-col items-center">
-            {/* STACKING PENTING: Relative container, absolute children */}
-            <div className="relative w-full aspect-video rounded-3xl overflow-hidden border-4 border-blue-200 bg-black mb-6">
-              <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" autoPlay playsInline muted />
-              <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover" />
-            </div>
-            <button onClick={() => window.location.reload()} className="bg-red-600 text-white px-8 py-3 rounded-xl font-bold">Tutup Kamera</button>
+
+          {/* Panel Evaluasi (Kamera) */}
+          <div className="bg-white/90 p-8 rounded-3xl shadow-xl flex flex-col justify-center items-center">
+            {!isCameraActive ? (
+              <button onClick={startCamera} className="w-full h-full min-h-[300px] border-4 border-dashed border-indigo-300 rounded-3xl flex flex-col items-center justify-center text-indigo-600 hover:bg-indigo-50 font-bold text-lg transition-all">
+                <Camera size={56} className="mb-4" /> Mulai Evaluasi Isyarat
+              </button>
+            ) : (
+              <div className="w-full flex flex-col items-center">
+                <div className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white p-4 rounded-2xl font-bold text-center mb-6 shadow-md">
+                  Status: {feedbackText}
+                </div>
+                <div className="relative w-full aspect-video rounded-3xl overflow-hidden bg-black border-4 border-slate-200 shadow-inner">
+                  <video ref={videoRef} className="w-full h-full object-cover mirror" autoPlay playsInline muted />
+                </div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </main>
   );

@@ -1,121 +1,115 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { ArrowLeft, Send, Mic, Languages } from 'lucide-react';
 
 export default function TalkSpace() {
   const [messages, setMessages] = useState([
-    { id: 1, sender: "Naila (Tunanetra)", text: "Halo teman-teman, apakah materi hari ini jelas?" },
-    { id: 2, sender: "Budi (Tunarungu)", text: "Halo Naila! Ya, videonya sangat membantu." }
+    { id: 1, sender: "Naila (Tunanetra)", text: "Apakah ada instruksi jika terjadi hujan lebat terus menerus?", type: "voice" },
+    { id: 2, sender: "Budi (Tunarungu)", text: "[Isyarat Terdeteksi: Hujan Lebat]", type: "sign" }
   ]);
-  
+
   const [inputText, setInputText] = useState("");
-  const [isRecording, setIsRecording] = useState(false);
+  const [isListening, setIsListening] = useState(false);
 
-  // Fungsi Kirim Teks ke Backend Flask
-  const handleSendMessage = async (textToSend: string = inputText) => {
-    const trimmed = textToSend.trim();
-    if (!trimmed) return;
-
-    // Tambahkan pesan user ke daftar chat
-    const userMsg = { id: Date.now(), sender: "Anda", text: trimmed };
-    setMessages(prev => [...prev, userMsg]);
-    setInputText("");
-
-    try {
-      // Kirim input ke backend STT Flask
-      const res = await fetch('http://localhost:5000/api/talkspace/stt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: trimmed })
-      });
-
-      const data = await res.json();
-      if (res.ok && data.reply) {
-        const botMsg = { id: Date.now() + 1, sender: "Asisten SMILE", text: data.reply };
-        setMessages(prev => [...prev, botMsg]);
-
-        // Putar audio panduan secara otomatis menggunakan TTS
-        const ttsRes = await fetch('http://localhost:5000/api/talkspace/tts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: data.reply })
-        });
-        const ttsData = await ttsRes.json();
-        if (ttsRes.ok && ttsData.audio_url) {
-          const audio = new Audio(ttsData.audio_url);
-          audio.play().catch(e => console.error("Playback failed:", e));
-        }
-      }
-    } catch (err) {
-      console.error("Gagal menghubungi backend:", err);
+  // Auto-Read: Bacakan pesan baru (Inklusif)
+  useEffect(() => {
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.sender !== "Anda" && typeof window !== 'undefined') {
+      window.speechSynthesis.cancel();
+      const speech = new SpeechSynthesisUtterance(lastMsg.text);
+      speech.lang = 'id-ID';
+      window.speechSynthesis.speak(speech);
     }
+  }, [messages]);
+
+  const handleSendMessage = (textToSend: string, type: string) => {
+    if (!textToSend.trim()) return;
+    const newMessage = {
+      id: Date.now(),
+      sender: "Anda",
+      text: type === "sign" ? `[Isyarat Terdeteksi: ${textToSend}]` : textToSend,
+      type
+    };
+    setMessages([...messages, newMessage]);
+    setInputText("");
   };
 
-  // Fungsi Rekam Suara (Speech-to-Text)
-  const startRecording = () => {
-    // Cek apakah browser mendukung SpeechRecognition
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    
-    if (!SpeechRecognition) {
-      alert("Maaf, browser kamu tidak mendukung fitur rekaman suara.");
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'id-ID'; // Bahasa Indonesia
-    
-    recognition.onstart = () => setIsRecording(true);
-    recognition.onend = () => setIsRecording(false);
-    
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setInputText(transcript); // Hasil suara otomatis masuk ke kotak input
-      handleSendMessage(transcript); // Kirim ucapan secara langsung ke backend
-    };
-
-    recognition.start();
+  const handleKirimSuara = () => {
+    setIsListening(true);
+    setTimeout(() => {
+      handleSendMessage("Saya sedang berlindung di ruang kelas", "voice");
+      setIsListening(false);
+    }, 2000);
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 p-6 flex flex-col max-w-4xl mx-auto text-white">
-      <h1 className="text-3xl font-bold mb-6 text-indigo-400">Talk Space: Ruang Komunikasi Inklusif</h1>
+    <main className="min-h-screen bg-gradient-to-br from-indigo-100 via-blue-50 to-purple-100 p-6 md:p-12 font-sans text-slate-900">
+      <div className="max-w-4xl mx-auto w-full">
+        <header className="flex justify-between items-center mb-8 bg-white/70 backdrop-blur-md px-6 py-4 rounded-2xl border border-white/80 shadow-sm">
+          <Link href="/tunanetra" className="flex items-center gap-2 text-indigo-700 font-bold hover:text-indigo-900 transition-colors">
+            <ArrowLeft size={20} /> Kembali ke Dashboard
+          </Link>
+          <h1 className="text-xl font-black text-indigo-900">Talk Space Inklusif</h1>
+        </header>
 
-      {/* Area Chat */}
-      <div className="flex-1 bg-slate-900 rounded-3xl p-6 border border-indigo-800 mb-6 overflow-y-auto h-96">
-        {messages.map((msg) => (
-          <div key={msg.id} className="mb-4 bg-slate-800 p-4 rounded-xl border border-slate-700">
-            <p className="text-xs text-indigo-400 font-bold mb-1">{msg.sender}</p>
-            <p className="text-lg">{msg.text}</p>
+        {/* Area Chat - Glassmorphism */}
+        <div
+          className="bg-white/80 backdrop-blur-md rounded-3xl p-6 border border-white shadow-xl h-[400px] overflow-y-auto mb-6"
+          role="log"
+          aria-label="Riwayat Obrolan"
+        >
+          {messages.map((msg) => (
+            <div key={msg.id} className="mb-4 bg-blue-50/80 p-4 rounded-2xl border border-blue-100 shadow-sm">
+              <div className="flex justify-between items-center mb-2">
+                <p className="text-xs text-indigo-600 font-extrabold uppercase tracking-widest">{msg.sender}</p>
+                <span className="text-[10px] bg-white px-2 py-0.5 rounded-full uppercase font-bold border border-slate-200">
+                  {msg.type === 'voice' ? '🎙️ Suara' : msg.type === 'sign' ? '🤟 Isyarat' : '📝 Teks'}
+                </span>
+              </div>
+              <p className="text-slate-800 font-medium mb-3">{msg.text}</p>
+              <button
+                className="text-[10px] bg-indigo-600 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-indigo-700 transition-all"
+                aria-label={msg.type === 'voice' ? 'Terjemahkan pesan suara ke isyarat' : 'Terjemahkan pesan ke teks'}
+              >
+                {msg.type === 'voice' ? 'Terjemahkan ke Isyarat' : 'Terjemahkan ke Teks/Suara'}
+              </button>
+            </div>
+          ))}
+          {isListening && <p className="text-rose-600 animate-pulse font-bold text-center">🎙️ Mendengarkan suara...</p>}
+        </div>
+
+        {/* Input Area */}
+        <div className="bg-white/80 backdrop-blur-md p-6 rounded-3xl border border-white shadow-xl flex flex-col gap-4">
+          <input
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            className="w-full bg-slate-50 p-4 rounded-2xl border border-slate-200 focus:border-indigo-500 outline-none font-medium"
+            placeholder="Ketik pesan..."
+            aria-label="Tulis pesan teks"
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <button
+              onClick={() => handleSendMessage(inputText, "text")}
+              className="bg-indigo-600 text-white py-4 rounded-2xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
+            >
+              <Send size={18} /> Kirim Teks
+            </button>
+            <button
+              onClick={handleKirimSuara}
+              className="bg-teal-600 text-white py-4 rounded-2xl font-bold hover:bg-teal-700 transition-all flex items-center justify-center gap-2"
+            >
+              <Mic size={18} /> Kirim Suara
+            </button>
+            <Link
+              href="/tunarungu"
+              className="bg-rose-600 text-white py-4 rounded-2xl font-bold hover:bg-rose-700 transition-all text-center flex items-center justify-center gap-2"
+            >
+              <Languages size={18} /> Kirim Isyarat
+            </Link>
           </div>
-        ))}
-      </div>
-
-      {/* Input Area */}
-      <div className="flex flex-col md:flex-row gap-4">
-        <input 
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-          className="flex-1 bg-slate-800 p-4 rounded-2xl border border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-          placeholder="Ketik pesan atau klik tombol rekam..." 
-        />
-        
-        {/* Tombol Rekam */}
-        <button 
-          onClick={startRecording}
-          className={`px-6 py-4 rounded-2xl font-bold transition-all flex items-center gap-2 ${
-            isRecording ? 'bg-red-600 animate-pulse' : 'bg-teal-600 hover:bg-teal-500'
-          }`}
-        >
-          <span>🎙️</span> {isRecording ? "Mendengarkan..." : "Rekam Suara"}
-        </button>
-
-        {/* Tombol Kirim */}
-        <button 
-          onClick={() => handleSendMessage()}
-          className="bg-indigo-600 px-8 py-4 rounded-2xl font-bold hover:bg-indigo-500 transition-all"
-        >
-          Kirim
-        </button>
+        </div>
       </div>
     </main>
   );
