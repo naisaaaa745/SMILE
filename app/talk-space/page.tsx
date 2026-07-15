@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Send, Mic, Languages } from 'lucide-react';
+import { ArrowLeft, Send, Mic, Languages, MicOff } from 'lucide-react';
 
 export default function TalkSpace() {
   const [messages, setMessages] = useState([
@@ -12,7 +12,7 @@ export default function TalkSpace() {
   const [inputText, setInputText] = useState("");
   const [isListening, setIsListening] = useState(false);
 
-  // Auto-Read: Bacakan pesan baru (Inklusif)
+  // Auto-Read untuk Tunanetra
   useEffect(() => {
     const lastMsg = messages[messages.length - 1];
     if (lastMsg && lastMsg.sender !== "Anda" && typeof window !== 'undefined') {
@@ -31,16 +31,45 @@ export default function TalkSpace() {
       text: type === "sign" ? `[Isyarat Terdeteksi: ${textToSend}]` : textToSend,
       type
     };
-    setMessages([...messages, newMessage]);
+    setMessages(prev => [...prev, newMessage]);
     setInputText("");
   };
 
+  // FUNGSI SPEECH RECOGNITION ASLI (Bukan Simulasi Lagi)
   const handleKirimSuara = () => {
-    setIsListening(true);
-    setTimeout(() => {
-      handleSendMessage("Saya sedang berlindung di ruang kelas", "voice");
+    if (typeof window === 'undefined') return;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert("Browser tidak mendukung perekaman suara lisan.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'id-ID';
+    recognition.interimResults = false;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+    };
+
+    recognition.onresult = (event: any) => {
+      const hasilSuara = event.results[0][0].transcript;
+      if (hasilSuara.trim()) {
+        handleSendMessage(hasilSuara, "voice");
+      }
+    };
+
+    recognition.onerror = (err: any) => {
+      console.error("Speech error:", err);
       setIsListening(false);
-    }, 2000);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.start();
   };
 
   return (
@@ -53,12 +82,8 @@ export default function TalkSpace() {
           <h1 className="text-xl font-black text-indigo-900">Talk Space Inklusif</h1>
         </header>
 
-        {/* Area Chat - Glassmorphism */}
-        <div
-          className="bg-white/80 backdrop-blur-md rounded-3xl p-6 border border-white shadow-xl h-[400px] overflow-y-auto mb-6"
-          role="log"
-          aria-label="Riwayat Obrolan"
-        >
+        {/* Area Chat */}
+        <div className="bg-white/80 backdrop-blur-md rounded-3xl p-6 border border-white shadow-xl h-[400px] overflow-y-auto mb-6" role="log" aria-label="Riwayat Obrolan">
           {messages.map((msg) => (
             <div key={msg.id} className="mb-4 bg-blue-50/80 p-4 rounded-2xl border border-blue-100 shadow-sm">
               <div className="flex justify-between items-center mb-2">
@@ -68,15 +93,12 @@ export default function TalkSpace() {
                 </span>
               </div>
               <p className="text-slate-800 font-medium mb-3">{msg.text}</p>
-              <button
-                className="text-[10px] bg-indigo-600 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-indigo-700 transition-all"
-                aria-label={msg.type === 'voice' ? 'Terjemahkan pesan suara ke isyarat' : 'Terjemahkan pesan ke teks'}
-              >
+              <button className="text-[10px] bg-indigo-600 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-indigo-700 transition-all">
                 {msg.type === 'voice' ? 'Terjemahkan ke Isyarat' : 'Terjemahkan ke Teks/Suara'}
               </button>
             </div>
           ))}
-          {isListening && <p className="text-rose-600 animate-pulse font-bold text-center">🎙️ Mendengarkan suara...</p>}
+          {isListening && <p className="text-rose-600 animate-pulse font-bold text-center">🎙️ Silakan bicara, mikrofon sedang merekam suara...</p>}
         </div>
 
         {/* Input Area */}
@@ -87,25 +109,18 @@ export default function TalkSpace() {
             className="w-full bg-slate-50 p-4 rounded-2xl border border-slate-200 focus:border-indigo-500 outline-none font-medium"
             placeholder="Ketik pesan..."
             aria-label="Tulis pesan teks"
+            onKeyDown={(e) => e.key === 'Enter' && handleSendMessage(inputText, "text")}
           />
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button
-              onClick={() => handleSendMessage(inputText, "text")}
-              className="bg-indigo-600 text-white py-4 rounded-2xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
-            >
+            <button onClick={() => handleSendMessage(inputText, "text")} className="bg-indigo-600 text-white py-4 rounded-2xl font-bold hover:bg-indigo-700 transition-all flex items-center justify-center gap-2">
               <Send size={18} /> Kirim Teks
             </button>
-            <button
-              onClick={handleKirimSuara}
-              className="bg-teal-600 text-white py-4 rounded-2xl font-bold hover:bg-teal-700 transition-all flex items-center justify-center gap-2"
-            >
-              <Mic size={18} /> Kirim Suara
+            <button onClick={handleKirimSuara} disabled={isListening} className={`${isListening ? 'bg-rose-500' : 'bg-teal-600'} text-white py-4 rounded-2xl font-bold hover:opacity-90 transition-all flex items-center justify-center gap-2`}>
+              {isListening ? <MicOff size={18} /> : <Mic size={18} />}
+              {isListening ? "Merekam..." : "🎙️ Kirim Suara (Mic)"}
             </button>
-            <Link
-              href="/tunarungu"
-              className="bg-rose-600 text-white py-4 rounded-2xl font-bold hover:bg-rose-700 transition-all text-center flex items-center justify-center gap-2"
-            >
+            <Link href="/tunarungu" className="bg-rose-600 text-white py-4 rounded-2xl font-bold hover:bg-rose-700 transition-all text-center flex items-center justify-center gap-2">
               <Languages size={18} /> Kirim Isyarat
             </Link>
           </div>
