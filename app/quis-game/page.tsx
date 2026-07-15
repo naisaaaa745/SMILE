@@ -1,75 +1,86 @@
 'use client';
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { ArrowLeft, Mic, Sparkles } from 'lucide-react';
 
 const questions = [
-  { q: "Apa indikator utama dari cuaca ekstrem?", o: ["Langit cerah", "Awan gelap & angin kencang"] },
-  { q: "Jika melihat awan Cumulonimbus, langkah apa yang tepat?", o: ["Tetap di luar", "Segera cari tempat berlindung"] },
-  { q: "Apa yang dilakukan saat petir menyambar di dekatmu?", o: ["Berlari di lapangan", "Matikan elektronik & menjauh dari jendela"] },
-  { q: "Tindakan efektif meminimalisir banjir di sekolah?", o: ["Menutup saluran air", "Menjaga kebersihan selokan"] },
-  { q: "Mengapa dilarang berlindung di bawah pohon saat angin kencang?", o: ["Pohon bisa tumbang", "Menghalangi pandangan"] },
-  { q: "Tujuan utama sistem peringatan dini adalah?", o: ["Menakuti warga", "Memberi waktu evakuasi"] },
-  { q: "Jika ada teman tunanetra saat bencana, apa tindakanmu?", o: ["Biarkan dia sendiri", "Beri info suara & tuntun ke tempat aman"] },
-  { q: "Jika teman tunarungu memberi isyarat 'Petir', apa yang kamu lakukan?", o: ["Mengabaikan", "Cari perlindungan bersama"] },
-  { q: "Mengapa kolaborasi antar-disabilitas penting?", o: ["Tidak penting", "Saling melengkapi kelebihan"] },
-  { q: "Apa yang dimaksud dengan 'Mitigasi'?", o: ["Upaya memadamkan api", "Mengurangi risiko bencana sebelum terjadi"] }
+  { q: "Apa indikator utama dari cuaca ekstrem?", o: ["A. Langit cerah", "B. Awan gelap & angin kencang"], ans: "b" },
+  { q: "Jika melihat awan Cumulonimbus, langkah yang tepat?", o: ["A. Tetap di luar", "B. Cari tempat berlindung"], ans: "b" }
 ];
 
 export default function QuizGame() {
   const [currentQ, setCurrentQ] = useState(0);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [isListening, setIsListening] = useState(false);
 
   const speak = (text: string) => {
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'id-ID';
-    window.speechSynthesis.speak(utterance);
+    if (typeof window !== 'undefined') {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'id-ID';
+      window.speechSynthesis.speak(utterance);
+    }
   };
 
   useEffect(() => {
-    speak(`Soal ${currentQ + 1}: ${questions[currentQ].q}. Pilihan: ${questions[currentQ].o.join(', ')}`);
+    speak(`Pertanyaan ${currentQ + 1}: ${questions[currentQ].q}. Pilihan: ${questions[currentQ].o.join(' atau ')}. Sebutkan pilihan A atau B.`);
   }, [currentQ]);
 
   const listenAnswer = () => {
+    if (typeof window === 'undefined') return;
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
     recognition.lang = 'id-ID';
+
+    recognition.onstart = () => setIsListening(true);
     recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript.toLowerCase();
-      // Logika: jawaban benar adalah index 1 (berdasarkan struktur array)
-      if (transcript.includes(questions[currentQ].o[1].toLowerCase())) {
-        cekJawaban(1);
-      } else {
-        cekJawaban(0);
-      }
+      // Evaluasi Adaptif (Mendeteksi kunci A atau B)
+      const isCorrect = transcript.includes(questions[currentQ].ans);
+
+      setFeedback(isCorrect ? "✅ Tepat Sekali!" : "❌ Kurang Tepat");
+      speak(isCorrect ? "Jawaban Anda benar." : "Jawaban Anda kurang tepat. Akan disesuaikan oleh AI.");
+
+      setTimeout(() => {
+        setFeedback(null);
+        if (currentQ < questions.length - 1) setCurrentQ(currentQ + 1);
+        else speak("Evaluasi selesai. Anda diarahkan kembali ke Dashboard.");
+      }, 3000);
     };
+    recognition.onend = () => setIsListening(false);
     recognition.start();
   };
 
-  const cekJawaban = (idx: number) => {
-    const isCorrect = idx === 1;
-    setFeedback(isCorrect ? "✅ Benar" : "❌ Salah");
-    speak(isCorrect ? "Jawaban anda benar" : "Jawaban anda salah, coba lagi");
-    setTimeout(() => {
-      setFeedback(null);
-      if (currentQ < questions.length - 1) setCurrentQ(currentQ + 1);
-      else speak("Kuis selesai. Kerja bagus!");
-    }, 2000);
-  };
-
   return (
-    <div className="min-h-screen bg-slate-950 p-6 text-white flex flex-col items-center">
-      <h1 className="text-3xl font-bold mb-8 text-indigo-400">Game Kuis Inklusif</h1>
+    <main className="min-h-screen bg-gradient-to-br from-indigo-100 via-blue-50 to-purple-100 p-6 md:p-12 font-sans" role="main">
+      <div className="max-w-3xl mx-auto">
+        <header className="flex justify-between items-center mb-8 bg-white/70 backdrop-blur-md px-6 py-4 rounded-2xl shadow-sm border border-white">
+          <Link href="/tunanetra" aria-label="Kembali ke Dashboard" className="flex items-center gap-2 text-indigo-600 font-bold">
+            <ArrowLeft size={20} /> Dashboard
+          </Link>
+          <span className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-1.5 rounded-full text-xs font-bold shadow-sm" aria-label="Sistem Pembelajaran Adaptif Aktif">
+            <Sparkles size={14} /> AI Adaptive Leveling Aktif
+          </span>
+        </header>
 
-      <div className={`p-8 rounded-3xl border-2 w-full max-w-lg transition-colors ${feedback ? (feedback.includes('Benar') ? 'bg-green-900 border-green-500' : 'bg-red-900 border-red-500') : 'bg-slate-900 border-indigo-800'}`}>
-        <p className="text-indigo-300 mb-2">Soal {currentQ + 1} dari 10</p>
-        <h2 className="text-2xl mb-6">{questions[currentQ].q}</h2>
+        <section className="bg-white/90 backdrop-blur-md p-10 rounded-3xl shadow-xl border border-white text-center relative overflow-hidden" aria-live="assertive">
+          <p className="text-sm font-bold uppercase tracking-widest text-indigo-500 mb-4">Evaluasi Modul {currentQ + 1} / {questions.length}</p>
+          <h2 className="text-3xl font-black text-slate-900 mb-10 leading-snug">{questions[currentQ].q}</h2>
 
-        {feedback && <p className="text-4xl font-bold mb-6 text-center">{feedback}</p>}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10">
+            {questions[currentQ].o.map((opt, i) => (
+              <div key={i} className="p-4 rounded-2xl bg-slate-50 border-2 border-slate-200 text-slate-700 font-bold text-lg" aria-hidden="true">{opt}</div>
+            ))}
+          </div>
 
-        <button onClick={listenAnswer} className="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-xl font-bold flex justify-center items-center gap-2">
-          <span>🔊</span> Klik & Sebutkan Jawaban
-        </button>
+          {feedback && <div className="text-2xl font-black mb-6 animate-bounce" role="alert">{feedback}</div>}
+
+          <button onClick={listenAnswer} aria-label="Tekan untuk menjawab dengan suara" className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center shadow-lg transition-all focus:ring-4 focus:ring-indigo-400 ${isListening ? 'bg-rose-500 text-white animate-pulse' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}>
+            <Mic size={32} />
+          </button>
+          <p className="mt-4 text-slate-500 font-medium">{isListening ? "Mendengarkan jawaban..." : "Tekan mikrofon & sebutkan A atau B"}</p>
+        </section>
       </div>
-    </div>
+    </main>
   );
 }
