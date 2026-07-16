@@ -1,157 +1,107 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Volume2, Type, ChevronLeft, ChevronRight, RotateCcw, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Volume2, VolumeX, Type, ChevronLeft, ChevronRight, CheckCircle2, FileText } from 'lucide-react';
 import Link from 'next/link';
 
-// Materi 10 Langkah dari Temanmu
 const lessonData = [
-  { id: 1, text: "Halo, selamat datang di SMILE. Hari ini kita akan belajar tentang Cuaca Ekstrem Akibat Perubahan Iklim." },
-  { id: 2, text: "Cuaca ekstrem adalah kondisi cuaca yang terjadi dengan intensitas tinggi, seperti hujan lebat, angin kencang, kekeringan, maupun gelombang panas." },
-  { id: 3, text: "Hujan yang turun sangat deras dalam waktu lama dapat menyebabkan banjir yang merendam rumah dan jalan." },
-  { id: 4, text: "Kekeringan terjadi karena hujan tidak turun dalam waktu lama, sehingga tanaman sulit tumbuh dan air bersih sulit didapat." },
-  { id: 5, text: "Angin kencang dapat menyebabkan pohon tumbang dan merusak bangunan. Saat terjadi, kita harus berlindung di tempat aman." },
-  { id: 6, text: "Gelombang panas adalah kondisi suhu udara sangat tinggi selama beberapa hari yang dapat menyebabkan tubuh cepat lelah." },
-  { id: 7, text: "Cuaca ekstrem berdampak buruk bagi lingkungan, kesehatan, aktivitas masyarakat, dan hasil pertanian." },
-  { id: 8, text: "Cara menghadapinya adalah dengan memperhatikan informasi cuaca, menjaga kesehatan, dan mengikuti arahan petugas." },
-  { id: 9, text: "Kita bisa mengurangi dampaknya dengan menanam pohon, menghemat listrik, menghemat air, dan menjaga kebersihan." },
-  { id: 10, text: "Hebat! Kamu sudah memahami materi ini. Mari terus menjaga bumi kita. Sampai jumpa di pembelajaran berikutnya!" }
+  { id: 1, text: "Perubahan iklim adalah pergeseran jangka panjang dalam suhu dan pola cuaca bumi.", videoId: "qxcjni_nXTc" },
+  { id: 2, text: "Akibat perubahan iklim, terjadi cuaca ekstrem seperti hujan lebat yang memicu banjir.", videoId: "qxcjni_nXTc" },
+  { id: 3, text: "Selain banjir, perubahan iklim menyebabkan kekeringan panjang yang sulitkan akses air.", videoId: "qxcjni_nXTc" },
+  { id: 4, text: "Mari kita lindungi bumi dengan menanam pohon dan mengurangi sampah plastik.", videoId: "qxcjni_nXTc" }
 ];
 
 export default function LessonPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [isLargeText, setIsLargeText] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
+  const [showLKPDSelection, setShowLKPDSelection] = useState(false);
+  const [activeLKPD, setActiveLKPD] = useState<'tunarungu' | 'tunanetra' | null>(null);
 
-  // Fungsi Audio (Web Speech API) yang diselaraskan dengan animasi UI
-  const playAudio = (text: string) => {
-    if (typeof window === 'undefined') return;
-
-    window.speechSynthesis.cancel(); // Hentikan suara sebelumnya
+  const speak = (text: string) => {
+    if (!isAudioEnabled || typeof window === 'undefined') return;
+    window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'id-ID';
-    utterance.rate = 0.95; // Sedikit dipelankan agar lebih jelas bagi siswa
-
-    utterance.onstart = () => setIsPlaying(true);
-    utterance.onend = () => setIsPlaying(false);
-    utterance.onerror = () => setIsPlaying(false);
-
     window.speechSynthesis.speak(utterance);
   };
 
-  // Putar suara otomatis setiap kali langkah (step) berubah
   useEffect(() => {
-    playAudio(lessonData[currentStep].text);
+    if (!showLKPDSelection && !activeLKPD && isAudioEnabled) speak(lessonData[currentStep].text);
+  }, [currentStep, isAudioEnabled, showLKPDSelection, activeLKPD]);
 
-    return () => {
-      if (typeof window !== 'undefined') {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, [currentStep]);
+  const LKPDContent = {
+    tunarungu: {
+      title: "LKPD Tunarungu: Hujan Lebat",
+      questions: [
+        { q: "Bagaimana keadaan langit sebelum hujan?", opt: ["Cerah", "Gelap"] },
+        { q: "Apa yang terjadi saat hujan lebat?", opt: ["Jalan tergenang air", "Jalan kering"] },
+        { q: "Apa yang harus dilakukan saat hujan lebat?", opt: ["Menggunakan payung", "Bermain di genangan"] }
+      ]
+    },
+    tunanetra: {
+      title: "LKPD Tunanetra: Hujan Lebat",
+      questions: [
+        { q: "Sebelum hujan turun, langit tampak?", opt: ["Cerah", "Gelap"] },
+        { q: "Hujan turun deras hingga air menggenang disebut?", opt: ["Cuaca cerah", "Hujan lebat"] },
+        { q: "Saat hujan lebat sebaiknya?", opt: ["Gunakan payung", "Bermain hujan"] }
+      ]
+    }
+  };
 
   return (
-    <main className="min-h-screen font-sans relative overflow-hidden bg-gradient-to-br from-indigo-100 via-blue-50 to-purple-100 text-slate-900 p-6 md:p-12">
-      {/* Background Estetik milikmu */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808015_1px,transparent_1px),linear-gradient(to_bottom,#80808015_1px,transparent_1px)] bg-[size:28px_28px] pointer-events-none"></div>
-      <div className="absolute top-[-5%] left-[20%] w-[500px] h-[350px] bg-gradient-to-tr from-blue-400/30 to-indigo-400/30 blur-[80px] rounded-full pointer-events-none"></div>
-
+    <main className="min-h-screen bg-gradient-to-br from-indigo-100 via-blue-50 to-purple-100 p-6 md:p-12 text-slate-900 relative">
       <div className="max-w-4xl mx-auto relative z-10">
-        <header className="flex justify-between items-center mb-8 bg-white/70 backdrop-blur-md px-6 py-4 rounded-2xl border border-white/80 shadow-sm">
-          <Link href="/tunanetra" className="flex items-center gap-2 text-blue-600 font-bold hover:text-indigo-600 transition-colors">
-            <ArrowLeft size={20} /> Kembali ke Dashboard
-          </Link>
-          <button
-            onClick={() => setIsLargeText(!isLargeText)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all border ${isLargeText ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-transparent' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-              }`}
-          >
-            <Type size={18} />
-            <span>{isLargeText ? 'Teks Sedang' : 'Teks Besar'}</span>
-          </button>
+        <header className="flex justify-between items-center mb-8 bg-white/70 backdrop-blur-md px-8 py-5 rounded-3xl border border-white/60 shadow-sm">
+          <Link href="/tunanetra" className="flex items-center gap-2 text-indigo-700 font-bold hover:text-indigo-900"><ArrowLeft size={20} /> Kembali</Link>
+          <div className="flex gap-3">
+            {/* Tombol Audio yang Hilang Sudah Dikembalikan */}
+            <button onClick={() => setIsAudioEnabled(!isAudioEnabled)} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm border ${isAudioEnabled ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-600'}`}>
+              {isAudioEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />} {isAudioEnabled ? 'Audio Aktif' : 'Audio Mati'}
+            </button>
+            <button onClick={() => setIsLargeText(!isLargeText)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-white shadow-sm border"><Type size={18} /> Teks</button>
+          </div>
         </header>
 
-        <article className="bg-white/90 backdrop-blur-md p-8 md:p-12 rounded-3xl border border-white shadow-xl relative overflow-hidden">
-          {/* Badge Adegan & Judul */}
-          <div className="flex items-center justify-between border-b pb-6 border-slate-200 mb-8 flex-wrap gap-4">
-            <div>
-              <span className="bg-blue-100 text-blue-700 font-extrabold text-xs px-4 py-1.5 rounded-full uppercase tracking-wider">
-                Materi Interaktif • Adegan {lessonData[currentStep].id} dari {lessonData.length}
-              </span>
-              <h1 className="text-2xl md:text-3xl font-black text-slate-900 mt-3">
-                Cuaca Ekstrem Akibat Perubahan Iklim
-              </h1>
+        {!showLKPDSelection && !activeLKPD ? (
+          <article className="bg-white/80 backdrop-blur-md p-8 rounded-3xl shadow-xl border border-white/50">
+            <h1 className="text-3xl font-black mb-6">Materi: Cuaca & Iklim</h1>
+            <div className="w-full aspect-video rounded-3xl overflow-hidden mb-8 border-4 border-white">
+              <iframe className="w-full h-full" src={`https://www.youtube.com/embed/${lessonData[currentStep].videoId}?autoplay=1`} allowFullScreen></iframe>
+            </div>
+            <div className={`p-8 rounded-2xl bg-white/60 text-center font-bold ${isLargeText ? 'text-3xl' : 'text-xl'}`}>"{lessonData[currentStep].text}"</div>
+            <div className="mt-8 flex justify-between">
+              <button onClick={() => setCurrentStep(prev => Math.max(prev - 1, 0))} disabled={currentStep === 0} className="px-6 py-3 rounded-2xl bg-white border"><ChevronLeft /></button>
+              {currentStep < lessonData.length - 1 ? (
+                <button onClick={() => setCurrentStep(prev => prev + 1)} className="px-8 py-3 rounded-2xl bg-indigo-600 text-white font-bold">Lanjut</button>
+              ) : (
+                <button onClick={() => setShowLKPDSelection(true)} className="px-8 py-3 rounded-2xl bg-emerald-600 text-white font-bold flex items-center gap-2"><FileText size={20} /> Selesai, Buka LKPD</button>
+              )}
+            </div>
+          </article>
+        ) : showLKPDSelection ? (
+          <div className="bg-white p-10 rounded-3xl text-center shadow-xl">
+            <h2 className="text-2xl font-black mb-6">Pilih Mode LKPD</h2>
+            <div className="grid grid-cols-2 gap-4">
+              <button onClick={() => { setShowLKPDSelection(false); setActiveLKPD('tunarungu'); }} className="p-8 bg-purple-100 rounded-2xl font-bold">Tunarungu</button>
+              <button onClick={() => { setShowLKPDSelection(false); setActiveLKPD('tunanetra'); }} className="p-8 bg-blue-100 rounded-2xl font-bold">Tunanetra</button>
             </div>
           </div>
-
-          {/* Banner Audio Panduan */}
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/80 p-6 rounded-2xl mb-8 flex items-center justify-between gap-4 shadow-sm">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-md flex-shrink-0">
-                <Volume2 size={24} className={isPlaying ? 'animate-bounce' : ''} />
+        ) : (
+          <div className="bg-white p-10 rounded-3xl shadow-xl">
+            <h2 className="text-2xl font-black mb-6">{LKPDContent[activeLKPD!].title}</h2>
+            {LKPDContent[activeLKPD!].questions.map((item, i) => (
+              <div key={i} className="mb-6 p-6 bg-slate-50 rounded-2xl">
+                <p className="font-bold mb-3">{i + 1}. {item.q}</p>
+                <div className="flex gap-4">
+                  {item.opt.map((o, j) => (
+                    <button key={j} onClick={() => speak(`Anda memilih ${o}`)} className="px-4 py-2 bg-white border rounded-xl font-bold hover:bg-indigo-50">{o}</button>
+                  ))}
+                </div>
               </div>
-              <div>
-                <h3 className="font-extrabold text-slate-900">Audio Narasi Otomatis</h3>
-                <p className="text-xs text-slate-500 font-medium">Suara akan membacakan teks setiap adegan diganti</p>
-              </div>
-            </div>
-
-            <button
-              onClick={() => playAudio(lessonData[currentStep].text)}
-              className="px-4 py-2.5 bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm transition-all flex-shrink-0"
-              title="Putar Ulang Suara"
-            >
-              <RotateCcw size={16} /> <span className="hidden sm:inline">Ulangi Audio</span>
-            </button>
+            ))}
+            <button onClick={() => setActiveLKPD(null)} className="text-indigo-600 font-bold">← Kembali ke Materi</button>
           </div>
-
-          {/* Kotak Materi Teks Utama */}
-          <div className={`min-h-[160px] flex items-center justify-center p-8 rounded-2xl bg-slate-50/80 border border-slate-100 transition-all text-center font-bold text-slate-800 ${isLargeText ? 'text-2xl md:text-3xl leading-relaxed' : 'text-xl md:text-2xl leading-normal'
-            }`}>
-            <p>"{lessonData[currentStep].text}"</p>
-          </div>
-
-          {/* Tombol Navigasi Step-by-Step */}
-          <div className="mt-8 flex items-center justify-between gap-4">
-            <button
-              onClick={() => setCurrentStep(prev => Math.max(prev - 1, 0))}
-              disabled={currentStep === 0}
-              className="flex items-center gap-2 px-6 py-3.5 rounded-2xl font-bold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none shadow-sm transition-all"
-            >
-              <ChevronLeft size={20} /> Sebelumnya
-            </button>
-
-            <div className="text-sm font-bold text-slate-400 font-mono hidden sm:block">
-              {currentStep + 1} / {lessonData.length}
-            </div>
-
-            {currentStep < lessonData.length - 1 ? (
-              <button
-                onClick={() => setCurrentStep(prev => Math.min(prev + 1, lessonData.length - 1))}
-                className="flex items-center gap-2 px-8 py-3.5 rounded-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-blue-500/25 transition-all hover:scale-105"
-              >
-                Lanjut <ChevronRight size={20} />
-              </button>
-            ) : (
-              <Link
-                href="/tunanetra"
-                className="flex items-center gap-2 px-8 py-3.5 rounded-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md shadow-emerald-500/25 transition-all hover:scale-105"
-              >
-                <CheckCircle2 size={20} /> Selesai Belajar
-              </Link>
-            )}
-          </div>
-
-          {/* Tips Belajar */}
-          <div className="mt-12 bg-amber-50/80 border border-amber-200 p-6 rounded-2xl flex items-start gap-4">
-            <span className="text-2xl">💡</span>
-            <div>
-              <h4 className="font-extrabold text-amber-950 mb-1">Tips Belajar Interaktif</h4>
-              <p className="text-sm text-amber-800 font-medium">
-                Gunakan tombol <b>Lanjut</b> dan <b>Sebelumnya</b> untuk menavigasi materi secara bertahap. Kamu bisa menekan tombol <b>Ulangi Audio</b> jika ingin mendengarkan ulang adegan saat ini.
-              </p>
-            </div>
-          </div>
-        </article>
+        )}
       </div>
     </main>
   );
